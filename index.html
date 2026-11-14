@@ -1,16 +1,1358 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="theme-color" content="#101619">
-    <title>Martian Map · Arcadia Expedition</title>
-    <link rel="stylesheet" href="%BASE_URL%vendor/cesium/Widgets/widgets.css">
-    <script>window.CESIUM_BASE_URL = '%BASE_URL%vendor/cesium/';</script>
-    <script src="%BASE_URL%vendor/cesium/Cesium.js"></script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  Globe,
+  Compass,
+  ShieldAlert,
+  Activity,
+  Layers,
+  Navigation,
+  Sun,
+  Eye,
+  Sparkles,
+  Play,
+  Pause,
+  RotateCcw,
+  PlusCircle,
+  CheckCircle2,
+  AlertTriangle,
+  Crosshair,
+  Database,
+  Wind,
+  Zap,
+  Terminal,
+  Video,
+  Box,
+  ArrowLeft,
+  Maximize2,
+  Minimize2,
+  Trophy,
+  Award,
+  Target,
+  CheckSquare,
+  Droplets,
+  Flame,
+  Shield,
+  Home,
+  Truck,
+  TrendingUp,
+  Cpu
+} from 'lucide-react';
+
+// ============================================================================
+// GLOBAL MARS COLONIZATION SITES & SUPPLY ROUTES DATASET
+// ============================================================================
+
+const GLOBAL_COLONIZATION_SITES = [
+  {
+    id: 'gale',
+    code: 'COL-01',
+    name: 'GALE CRATER (AEOLIS PALUS)',
+    lat: -4.67,
+    lon: 137.42,
+    suitabilityScore: 96,
+    habitatCapacity: 12,
+    waterIceRating: 'MODERATE (Hydrated Sulfates & Clay)',
+    solarPotential: 'HIGH (Equatorial Insolation)',
+    radiationShielding: 'GOOD (Mount Sharp Escarpment)',
+    description: 'Primary command hub at the base of Mount Sharp with rich hydrated mineral deposits and stable landing plains.'
+  },
+  {
+    id: 'jezero',
+    code: 'COL-02',
+    name: 'JEZERO CRATER DELTA',
+    lat: 18.38,
+    lon: 77.58,
+    suitabilityScore: 94,
+    habitatCapacity: 10,
+    waterIceRating: 'HIGH (Ancient Lacustrine Delta)',
+    solarPotential: 'HIGH (580 W/m² Peak)',
+    radiationShielding: 'MODERATE (Crater Rim Cover)',
+    description: 'Ancient river delta basin ideal for astrobiology research, carbonate extraction, and subsurface water mining.'
+  },
+  {
+    id: 'arcadia',
+    code: 'COL-03',
+    name: 'ARCADIA PLANITIA ICE SHEETS',
+    lat: 39.20,
+    lon: -171.00,
+    suitabilityScore: 95,
+    habitatCapacity: 16,
+    waterIceRating: 'EXCEPTIONAL (Shallow Glacial Ice)',
+    solarPotential: 'MODERATE (Mid-Latitude)',
+    radiationShielding: 'GOOD (Regolith Ice Berming)',
+    description: 'Vast smooth volcanic plains with pure water ice less than 1 meter below the surface for ISRU propellant production.'
+  },
+  {
+    id: 'valles',
+    code: 'COL-04',
+    name: 'VALLES MARINERIS (MELAS CHASMA)',
+    lat: -9.80,
+    lon: -76.20,
+    suitabilityScore: 89,
+    habitatCapacity: 8,
+    waterIceRating: 'MODERATE (Canyon Wall Seeps)',
+    solarPotential: 'MODERATE (Canyon Shadowing)',
+    radiationShielding: 'EXCEPTIONAL (7km Canyon Depth)',
+    description: 'Deepest canyon system in the solar system offering natural atmospheric pressure boost and cliffside radiation protection.'
+  },
+  {
+    id: 'utopia',
+    code: 'COL-05',
+    name: 'UTOPIA PLANITIA BASIN',
+    lat: 46.70,
+    lon: 117.50,
+    suitabilityScore: 91,
+    habitatCapacity: 14,
+    waterIceRating: 'EXCEPTIONAL (Subsurface Ice Slab)',
+    solarPotential: 'MODERATE (Seasonal Dust)',
+    radiationShielding: 'MODERATE (Flat Terrain)',
+    description: 'Massive northern impact basin hosting a water ice deposit larger than Lake Superior.'
+  },
+  {
+    id: 'hellas',
+    code: 'COL-06',
+    name: 'HELLAS PLANITIA LOWLANDS',
+    lat: -42.40,
+    lon: 70.50,
+    suitabilityScore: 86,
+    habitatCapacity: 8,
+    waterIceRating: 'HIGH (Glacial Debris Aprons)',
+    solarPotential: 'LOW-MODERATE (Southern Winter)',
+    radiationShielding: 'HIGH (11.6 mbar Surface Pressure)',
+    description: 'Lowest elevation on Mars providing the highest atmospheric pressure for aerobraking and radiation attenuation.'
+  },
+  {
+    id: 'olympus',
+    code: 'COL-07',
+    name: 'OLYMPUS MONS LAVA TUBES',
+    lat: 18.65,
+    lon: -133.80,
+    suitabilityScore: 88,
+    habitatCapacity: 10,
+    waterIceRating: 'LOW-MODERATE (Volcanic Vent Ice)',
+    solarPotential: 'EXCEPTIONAL (Above Dust Layer)',
+    radiationShielding: 'EXCEPTIONAL (Subterranean Lava Tubes)',
+    description: 'Colossal shield volcano featuring intact subterranean basalt lava tubes suitable for radiation-proof underground cities.'
+  },
+  {
+    id: 'elysium',
+    code: 'COL-08',
+    name: 'ELYSIUM PLANITIA GEOTHERMAL',
+    lat: 3.00,
+    lon: 154.70,
+    suitabilityScore: 92,
+    habitatCapacity: 12,
+    waterIceRating: 'MODERATE (Cerberus Fossae Ice)',
+    solarPotential: 'HIGH (Equatorial Belt)',
+    radiationShielding: 'MODERATE (Flat Volcanic Plain)',
+    description: 'Seismically active volcanic plain with potential subsurface geothermal heat gradients for basal ice melting.'
+  }
+];
+
+const COLONIZATION_ROUTES = [
+  {
+    id: 'RT-01',
+    name: 'EQUATORIAL ISRU EXPRESS',
+    from: 'Gale Crater (COL-01)',
+    to: 'Elysium Planitia (COL-08)',
+    cargo: 'Liquid Methane (CH₄) & LOX Propellant',
+    distanceKm: 1120,
+    status: 'ACTIVE CONVOY'
+  },
+  {
+    id: 'RT-02',
+    name: 'NORTHERN CRYO-PIPELINE',
+    from: 'Arcadia Planitia (COL-03)',
+    to: 'Olympus Mons Lava Tubes (COL-07)',
+    cargo: 'Purified Water Ice & Hydrogen Feedstock',
+    distanceKm: 1840,
+    status: 'ACTIVE CONVOY'
+  },
+  {
+    id: 'RT-03',
+    name: 'SYRTIS-JEZERO SCIENCE CORRIDOR',
+    from: 'Jezero Crater Delta (COL-02)',
+    to: 'Utopia Planitia Basin (COL-05)',
+    cargo: 'Hydroponic Nutrients & Core Samples',
+    distanceKm: 2310,
+    status: 'SCHEDULED'
+  },
+  {
+    id: 'RT-04',
+    name: 'CHASM HEAVY FREIGHT HIGHWAY',
+    from: 'Valles Marineris (COL-04)',
+    to: 'Hellas Planitia Lowlands (COL-06)',
+    cargo: 'Basalt Regolith Bricks & Habitat Modules',
+    distanceKm: 3450,
+    status: 'ACTIVE CONVOY'
+  }
+];
+
+// ============================================================================
+// HIGH-FIDELITY PROCEDURAL MARS TEXTURE & BUMP MAP GENERATOR
+// ============================================================================
+
+function createProceduralMarsTextures() {
+  const width = 2048;
+  const height = 1024;
+
+  const colorCanvas = document.createElement('canvas');
+  colorCanvas.width = width;
+  colorCanvas.height = height;
+  const ctx = colorCanvas.getContext('2d');
+
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = width;
+  bumpCanvas.height = height;
+  const bCtx = bumpCanvas.getContext('2d');
+
+  const baseGrad = ctx.createLinearGradient(0, 0, 0, height);
+  baseGrad.addColorStop(0, '#7a331b');
+  baseGrad.addColorStop(0.2, '#b84f29');
+  baseGrad.addColorStop(0.5, '#d6683b');
+  baseGrad.addColorStop(0.8, '#c45b33');
+  baseGrad.addColorStop(1, '#6b2d17');
+  ctx.fillStyle = baseGrad;
+  ctx.fillRect(0, 0, width, height);
+
+  bCtx.fillStyle = '#808080';
+  bCtx.fillRect(0, 0, width, height);
+
+  for (let i = 0; i < 500; i++) {
+    const x = Math.random() * width;
+    const y = Math.random() * height;
+    const rx = Math.random() * 160 + 25;
+    const ry = Math.random() * 90 + 20;
+    const rot = Math.random() * Math.PI;
+    const isDark = Math.random() > 0.38;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    const radGrad = ctx.createRadialGradient(0, 0, rx * 0.05, 0, 0, rx);
+    if (isDark) {
+      radGrad.addColorStop(0, 'rgba(42, 18, 12, 0.55)');
+      radGrad.addColorStop(0.65, 'rgba(72, 34, 22, 0.3)');
+      radGrad.addColorStop(1, 'rgba(72, 34, 22, 0)');
+    } else {
+      radGrad.addColorStop(0, 'rgba(245, 142, 85, 0.42)');
+      radGrad.addColorStop(0.7, 'rgba(214, 104, 59, 0.18)');
+      radGrad.addColorStop(1, 'rgba(214, 104, 59, 0)');
+    }
+    ctx.fillStyle = radGrad;
+    ctx.scale(1, ry / rx);
+    ctx.beginPath();
+    ctx.arc(0, 0, rx, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  for (let i = 0; i < 1800; i++) {
+    const cx = Math.random() * width;
+    const cy = Math.random() * height;
+    const cr = Math.pow(Math.random(), 2.2) * 38 + 2.0;
+
+    ctx.strokeStyle = 'rgba(248, 162, 112, 0.28)';
+    ctx.lineWidth = Math.max(1, cr * 0.12);
+    ctx.beginPath();
+    ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(45, 18, 10, 0.35)';
+    ctx.beginPath();
+    ctx.arc(cx + cr * 0.1, cy + cr * 0.1, cr * 0.82, 0, Math.PI * 2);
+    ctx.fill();
+
+    bCtx.strokeStyle = 'rgba(240, 240, 240, 0.55)';
+    bCtx.lineWidth = Math.max(1.2, cr * 0.14);
+    bCtx.beginPath();
+    bCtx.arc(cx, cy, cr, 0, Math.PI * 2);
+    bCtx.stroke();
+
+    bCtx.fillStyle = 'rgba(25, 25, 25, 0.55)';
+    bCtx.beginPath();
+    bCtx.arc(cx, cy, cr * 0.78, 0, Math.PI * 2);
+    bCtx.fill();
+  }
+
+  ctx.save();
+  bCtx.save();
+  const canyonStartX = 580;
+  const canyonY = 520;
+  for (let s = 0; s < 600; s += 3) {
+    const t = s / 600;
+    const offsetY = Math.sin(t * Math.PI * 4) * 16 + (Math.random() - 0.5) * 5;
+    const canyonWidth = Math.sin(t * Math.PI) * 32 + 5;
+
+    ctx.fillStyle = 'rgba(28, 10, 6, 0.82)';
+    ctx.beginPath();
+    ctx.ellipse(canyonStartX + s, canyonY + offsetY, 12, canyonWidth * 0.55, 0.12, 0, Math.PI * 2);
+    ctx.fill();
+
+    bCtx.fillStyle = 'rgba(10, 10, 10, 0.85)';
+    bCtx.beginPath();
+    bCtx.ellipse(canyonStartX + s, canyonY + offsetY, 12, canyonWidth * 0.5, 0.12, 0, Math.PI * 2);
+    bCtx.fill();
+  }
+  ctx.restore();
+  bCtx.restore();
+
+  const northCap = ctx.createLinearGradient(0, 0, 0, 48);
+  northCap.addColorStop(0, 'rgba(255, 252, 248, 0.92)');
+  northCap.addColorStop(0.65, 'rgba(225, 185, 165, 0.35)');
+  northCap.addColorStop(1, 'rgba(225, 185, 165, 0)');
+  ctx.fillStyle = northCap;
+  ctx.fillRect(0, 0, width, 48);
+
+  const southCap = ctx.createLinearGradient(0, height, 0, height - 48);
+  southCap.addColorStop(0, 'rgba(255, 252, 248, 0.92)');
+  southCap.addColorStop(0.65, 'rgba(225, 185, 165, 0.35)');
+  southCap.addColorStop(1, 'rgba(225, 185, 165, 0)');
+  ctx.fillStyle = southCap;
+  ctx.fillRect(0, height - 48, width, 48);
+
+  const colorMap = new window.THREE.CanvasTexture(colorCanvas);
+  colorMap.wrapS = window.THREE.RepeatWrapping;
+  colorMap.wrapT = window.THREE.ClampToEdgeWrapping;
+  colorMap.anisotropy = 16;
+
+  const bumpMap = new window.THREE.CanvasTexture(bumpCanvas);
+  bumpMap.wrapS = window.THREE.RepeatWrapping;
+  bumpMap.wrapT = window.THREE.ClampToEdgeWrapping;
+  bumpMap.anisotropy = 16;
+
+  return { colorMap, bumpMap };
+}
+
+const WATER_ICE_SURFACE_ROUTES = [
+  {
+    id: 'ICE-RT-01',
+    name: 'GLACIAL ICE TRENCH ALPHA -> SABATIER REFINERY',
+    distanceM: 640,
+    iceConcentration: '94.2% Pure Subsurface Water Ice',
+    waypoints: [
+      { id: 'WP-START', label: 'ICE LANDING PAD', x: -44, z: 42, type: 'BASE' },
+      { id: 'WP-DRILL-1', label: 'SHALLOW ICE CORE #1 (0.8m)', x: -16, z: 18, type: 'ICE' },
+      { id: 'WP-DRILL-2', label: 'PERMAFROST SCAR #2 (1.1m)', x: 18, z: -12, type: 'ICE' },
+      { id: 'WP-ISRU', label: 'ISRU WATER MELTER & CH4 PLANT', x: 46, z: -38, type: 'REFINERY' }
+    ]
+  },
+  {
+    id: 'ICE-RT-02',
+    name: 'NORTHERN CRYO-AQUIFER CORRIDOR',
+    distanceM: 820,
+    iceConcentration: '89.7% Hydrated Clay & Ice Slab',
+    waypoints: [
+      { id: 'WP-START', label: 'ICE LANDING PAD', x: -44, z: 42, type: 'BASE' },
+      { id: 'WP-AQUA-1', label: 'BRINE SEEP BASIN', x: -30, z: -22, type: 'ICE' },
+      { id: 'WP-AQUA-2', label: 'SUB-GLACIAL CAVERN', x: 12, z: -44, type: 'ICE' },
+      { id: 'WP-ISRU', label: 'ISRU WATER MELTER & CH4 PLANT', x: 46, z: -38, type: 'REFINERY' }
+    ]
+  }
+];
+
+function computeSurfaceElevation(x, z, siteId) {
+  let y = Math.sin(x * 0.045) * Math.cos(z * 0.045) * 3.5 + Math.sin(x * 0.1 + z * 0.08) * 1.2;
+  if (siteId === 'arcadia' || siteId === 'utopia') {
+    const poly = Math.abs(Math.sin(x * 0.2) * Math.cos(z * 0.2)) * 1.2;
+    y = y * 0.4 + poly;
+  } else if (siteId === 'valles') {
+    const canyon = Math.abs(x + z * 0.3);
+    if (canyon < 32) y -= Math.cos((canyon / 32) * (Math.PI * 0.5)) * 14.0;
+  } else if (siteId === 'olympus') {
+    y += Math.max(0, 18 - Math.hypot(x, z) * 0.18);
+  }
+  const distPad = Math.hypot(x + 44, z - 42);
+  if (distPad < 12) {
+    const blend = Math.max(0, Math.min(1, (distPad - 5) / 7));
+    y = -1.5 * (1 - blend) + y * blend;
+  }
+  return y;
+}
+
+// ============================================================================
+// 1. GLOBAL 3D SPHERICAL MARS PLANET VIEWPORT COMPONENT
+// ============================================================================
+
+const GlobalMarsGlobeViewport = ({
+  selectedSiteId,
+  onSelectSite,
+  onDiveToSurface
+}) => {
+  const mountRef = useRef(null);
+  const [threeReady, setThreeReady] = useState(Boolean(window.THREE));
+  const [loadError, setLoadError] = useState(null);
+
+  const stateRef = useRef({
+    selectedSiteId,
+    onSelectSite,
+    onDiveToSurface
+  });
+
+  useEffect(() => {
+    stateRef.current = { selectedSiteId, onSelectSite, onDiveToSurface };
+  }, [selectedSiteId, onSelectSite, onDiveToSurface]);
+
+  useEffect(() => {
+    if (window.THREE) {
+      setThreeReady(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    script.async = true;
+    script.onload = () => setThreeReady(true);
+    script.onerror = () => setLoadError('Unable to load Three.js WebGL engine.');
+    document.head.appendChild(script);
+  }, []);
+
+  useEffect(() => {
+    if (!threeReady || !mountRef.current) return;
+    const THREE = window.THREE;
+    const container = mountRef.current;
+    const width = container.clientWidth || 900;
+    const height = container.clientHeight || 600;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x010204);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
+
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 2000);
+    camera.position.set(0, 12, 132);
+
+    const ambientLight = new THREE.AmbientLight(0x2a140d, 0.38);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffebd6, 2.5);
+    sunLight.position.set(-130, 55, 110);
+    scene.add(sunLight);
+
+    const starsGeo = new THREE.BufferGeometry();
+    const starCount = 1600;
+    const starPos = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i += 3) {
+      starPos[i] = (Math.random() - 0.5) * 1200;
+      starPos[i + 1] = (Math.random() - 0.5) * 1200;
+      starPos[i + 2] = (Math.random() - 0.5) * 1200;
+    }
+    starsGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const starsMat = new THREE.PointsMaterial({ color: 0xffe8d6, size: 1.05, transparent: true, opacity: 0.75 });
+    const starField = new THREE.Points(starsGeo, starsMat);
+    scene.add(starField);
+
+    const marsRadius = 46;
+    const globeGroup = new THREE.Group();
+    scene.add(globeGroup);
+
+    const marsGeo = new THREE.SphereGeometry(marsRadius, 96, 96);
+    const { colorMap, bumpMap } = createProceduralMarsTextures();
+    const marsMat = new THREE.MeshStandardMaterial({
+      map: colorMap,
+      bumpMap: bumpMap,
+      bumpScale: 1.6,
+      roughness: 0.84,
+      metalness: 0.02
+    });
+    const marsMesh = new THREE.Mesh(marsGeo, marsMat);
+    globeGroup.add(marsMesh);
+
+    const atmoGeo = new THREE.SphereGeometry(marsRadius * 1.05, 64, 64);
+    const atmoMat = new THREE.ShaderMaterial({
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {
+        sunDirection: { value: new THREE.Vector3(-130, 55, 110).normalize() }
+      },
+      vertexShader: `
+        varying vec3 vNormal;
+        varying vec3 vWorldPosition;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        varying vec3 vWorldPosition;
+        uniform vec3 sunDirection;
+        void main() {
+          vec3 viewDir = normalize(cameraPosition - vWorldPosition);
+          float rim = pow(0.65 - dot(vNormal, viewDir), 3.0);
+          float sunSide = smoothstep(-0.35, 0.85, dot(normalize(vWorldPosition), sunDirection));
+          vec3 glowColor = vec3(0.92, 0.40, 0.18);
+          gl_FragColor = vec4(glowColor, rim * (0.32 + sunSide * 0.68));
+        }
+      `
+    });
+    const atmoMesh = new THREE.Mesh(atmoGeo, atmoMat);
+    scene.add(atmoMesh);
+
+    const satGroup = new THREE.Group();
+    const satBody = new THREE.Mesh(
+      new THREE.BoxGeometry(1.2, 0.6, 0.6),
+      new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8 })
+    );
+    satGroup.add(satBody);
+    const panelGeo = new THREE.BoxGeometry(5.0, 0.08, 1.2);
+    const panelMat = new THREE.MeshStandardMaterial({ color: 0x1d4ed8, metalness: 0.7 });
+    const p1 = new THREE.Mesh(panelGeo, panelMat);
+    p1.position.set(3.4, 0, 0);
+    satGroup.add(p1);
+    const p2 = new THREE.Mesh(panelGeo, panelMat);
+    p2.position.set(-3.4, 0, 0);
+    satGroup.add(p2);
+    scene.add(satGroup);
+
+    const siteMeshes = [];
+    GLOBAL_COLONIZATION_SITES.forEach((site) => {
+      const phi = (90 - site.lat) * (Math.PI / 180);
+      const theta = (site.lon + 180) * (Math.PI / 180);
+      const sx = -(marsRadius + 0.8) * Math.sin(phi) * Math.cos(theta);
+      const sy = (marsRadius + 0.8) * Math.cos(phi);
+      const sz = (marsRadius + 0.8) * Math.sin(phi) * Math.sin(theta);
+
+      const markerGroup = new THREE.Group();
+      markerGroup.position.set(sx, sy, sz);
+
+      const ringGeo = new THREE.RingGeometry(1.5, 2.3, 24);
+      ringGeo.rotateX(Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: site.id === 'gale' ? 0x38bdf8 : 0xf59e0b,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.92
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      markerGroup.add(ring);
+
+      const pinGeo = new THREE.SphereGeometry(0.85, 16, 16);
+      const pinMat = new THREE.MeshBasicMaterial({ color: site.id === 'gale' ? 0x38bdf8 : 0xf59e0b });
+      const pin = new THREE.Mesh(pinGeo, pinMat);
+      pin.position.y = 1.5;
+      pin.userData = { siteId: site.id };
+      markerGroup.add(pin);
+
+      globeGroup.add(markerGroup);
+      siteMeshes.push({ id: site.id, group: markerGroup, ring });
+    });
+
+    let isDragging = false;
+    let prevMouseX = 0;
+    let prevMouseY = 0;
+    let dragDistance = 0;
+    let globeRotationY = -0.35;
+    let globeRotationX = 0.12;
+
+    const onPointerDown = (e) => {
+      isDragging = true;
+      prevMouseX = e.clientX;
+      prevMouseY = e.clientY;
+      dragDistance = 0;
+    };
+
+    const onPointerMove = (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - prevMouseX;
+      const dy = e.clientY - prevMouseY;
+      dragDistance += Math.hypot(dx, dy);
+      prevMouseX = e.clientX;
+      prevMouseY = e.clientY;
+
+      globeRotationY += dx * 0.006;
+      globeRotationX = Math.max(-1.1, Math.min(1.1, globeRotationX + dy * 0.006));
+    };
+
+    const onPointerUp = () => {
+      isDragging = false;
+    };
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    const onClick = (e) => {
+      if (dragDistance > 6) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+
+      const hitTargets = siteMeshes.map((s) => s.group.children[1]);
+      const hits = raycaster.intersectObjects(hitTargets);
+      if (hits.length > 0 && stateRef.current.onDiveToSurface) {
+        const clickedSiteId = hits[0].object.userData.siteId;
+        stateRef.current.onDiveToSurface(clickedSiteId);
+        return;
+      }
+
+      const planetHits = raycaster.intersectObject(marsMesh);
+      if (planetHits.length > 0 && stateRef.current.onDiveToSurface) {
+        const localPt = globeGroup.worldToLocal(planetHits[0].point.clone());
+        const clickedLat = 90 - (Math.acos(Math.max(-1, Math.min(1, localPt.y / marsRadius))) * 180) / Math.PI;
+        const waterIceSites = GLOBAL_COLONIZATION_SITES.filter((s) =>
+          s.waterIceRating.includes('EXCEPTIONAL') || s.waterIceRating.includes('HIGH')
+        );
+        let bestSite = waterIceSites[0];
+        let minLatDiff = Infinity;
+        waterIceSites.forEach((s) => {
+          const diff = Math.abs(s.lat - clickedLat);
+          if (diff < minLatDiff) {
+            minLatDiff = diff;
+            bestSite = s;
+          }
+        });
+        stateRef.current.onDiveToSurface(bestSite.id);
+      }
+    };
+
+    const domElem = renderer.domElement;
+    domElem.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    domElem.addEventListener('click', onClick);
+
+    const handleResize = () => {
+      if (!mountRef.current) return;
+      const w = mountRef.current.clientWidth || 900;
+      const h = mountRef.current.clientHeight || 600;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    };
+    window.addEventListener('resize', handleResize);
+
+    let animId;
+    let clock = 0;
+
+    const animate = () => {
+      animId = requestAnimationFrame(animate);
+      clock += 0.02;
+
+      if (!isDragging) {
+        globeRotationY += 0.0014;
+      }
+      globeGroup.rotation.y = globeRotationY;
+      globeGroup.rotation.x = globeRotationX;
+
+      const satOrbitAngle = clock * 0.45;
+      satGroup.position.set(Math.cos(satOrbitAngle) * 76, Math.sin(clock * 0.25) * 14, Math.sin(satOrbitAngle) * 76);
+      satGroup.rotation.y = -satOrbitAngle;
+
+      siteMeshes.forEach((s) => {
+        const pulse = 1 + Math.sin(clock * 3) * 0.25;
+        s.ring.scale.set(pulse, pulse, 1);
+        const isSel = s.id === stateRef.current.selectedSiteId;
+        s.ring.material.opacity = isSel ? 0.98 : 0.65;
+      });
+
+      renderer.render(scene, camera);
+    };
+
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      domElem.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      domElem.removeEventListener('click', onClick);
+      window.removeEventListener('resize', handleResize);
+      renderer.dispose();
+    };
+  }, [threeReady]);
+
+  if (loadError) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-slate-950 text-red-400 font-mono text-xs">
+        {loadError}
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full h-full min-h-[620px] rounded-2xl overflow-hidden border border-slate-800 bg-[#010204] cursor-pointer shadow-2xl">
+      <div ref={mountRef} className="w-full h-full" />
+      {!threeReady && (
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-950/90 text-sky-400 font-mono text-xs">
+          INITIALIZING SPHERICAL MARS ORBITAL ENGINE...
+        </div>
+      )}
+      <div className="absolute bottom-4 left-4 bg-slate-950/90 backdrop-blur-md border border-sky-500/40 rounded-xl px-4 py-2.5 text-xs font-mono text-sky-300 pointer-events-none shadow-xl">
+        <div>CLICK ANYWHERE ON MARS GLOBE TO AUTO-DROP ONTO WATER &amp; ICE RESERVES + LAUNCH CONTROLLABLE 3D SIMULATION</div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// 2. CONTROLLABLE 3D SURFACE SIMULATION WITH FREE-WHEEL SUSPENSION VIEWPORT
+// ============================================================================
+
+const ControllableMarsSurfaceViewport = ({
+  activeSite,
+  activeRoute,
+  autoSimRunning,
+  controlInputRef,
+  onTelemetryUpdate,
+  onHarvestIce
+}) => {
+  const mountRef = useRef(null);
+  const [threeReady, setThreeReady] = useState(Boolean(window.THREE));
+  const [cameraView, setCameraView] = useState('CHASE');
+
+  const simRef = useRef({
+    activeSite,
+    activeRoute,
+    autoSimRunning,
+    cameraView,
+    roverX: -44,
+    roverZ: 42,
+    roverHeading: 0.78,
+    autoProgress: 0,
+    iceExtractedKg: 207.5,
+    batteryPct: 98.4,
+    harvestedIds: {}
+  });
+
+  useEffect(() => {
+    simRef.current.activeSite = activeSite;
+    simRef.current.activeRoute = activeRoute;
+    simRef.current.autoSimRunning = autoSimRunning;
+    simRef.current.cameraView = cameraView;
+  }, [activeSite, activeRoute, autoSimRunning, cameraView]);
+
+  useEffect(() => {
+    if (window.THREE) {
+      setThreeReady(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    script.async = true;
+    script.onload = () => setThreeReady(true);
+    document.head.appendChild(script);
+  }, []);
+
+  useEffect(() => {
+    if (!threeReady || !mountRef.current) return;
+    const THREE = window.THREE;
+    const container = mountRef.current;
+    const width = container.clientWidth || 1100;
+    const height = container.clientHeight || 650;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b0e17);
+    scene.fog = new THREE.FogExp2(0x1f1924, 0.0035);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
+
+    const camera = new THREE.PerspectiveCamera(52, width / height, 0.2, 900);
+
+    const hemiLight = new THREE.HemisphereLight(0xcbe8ff, 0x422014, 0.85);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfff4e4, 1.85);
+    sunLight.position.set(90, 110, 60);
+    sunLight.castShadow = true;
+    scene.add(sunLight);
+
+    // Expanded Full-Canvas Mars Map Terrain (180x180 units)
+    const size = 180;
+    const segs = 160;
+    const terrainGeo = new THREE.PlaneGeometry(size, size, segs, segs);
+    terrainGeo.rotateX(-Math.PI / 2);
+
+    const pos = terrainGeo.attributes.position;
+    const colors = new Float32Array(pos.count * 3);
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const z = pos.getZ(i);
+      const y = computeSurfaceElevation(x, z, simRef.current.activeSite.id);
+      pos.setY(i, y);
+
+      const iceVein = Math.sin(x * 0.12) * Math.cos(z * 0.12);
+      if (iceVein > 0.25) {
+        colors[i * 3] = 0.45;
+        colors[i * 3 + 1] = 0.82;
+        colors[i * 3 + 2] = 0.95;
+      } else {
+        colors[i * 3] = 0.62 + iceVein * 0.08;
+        colors[i * 3 + 1] = 0.34 + iceVein * 0.05;
+        colors[i * 3 + 2] = 0.22 + iceVein * 0.04;
+      }
+    }
+    terrainGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    terrainGeo.computeVertexNormals();
+
+    const terrainMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.74,
+      metalness: 0.08
+    });
+    const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+    terrainMesh.receiveShadow = true;
+    scene.add(terrainMesh);
+
+    const grid = new THREE.GridHelper(180, 30, 0x38bdf8, 0x1e293b);
+    grid.position.y = -3.2;
+    grid.material.transparent = true;
+    grid.material.opacity = 0.14;
+    scene.add(grid);
+
+    const baseGroup = new THREE.Group();
+    baseGroup.position.set(-44, computeSurfaceElevation(-44, 42, simRef.current.activeSite.id), 42);
+    const habDome = new THREE.Mesh(
+      new THREE.CylinderGeometry(3.0, 3.6, 3.4, 16),
+      new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.35, roughness: 0.4 })
+    );
+    habDome.position.y = 1.7;
+    habDome.castShadow = true;
+    baseGroup.add(habDome);
+    scene.add(baseGroup);
+
+    const refineryGroup = new THREE.Group();
+    refineryGroup.position.set(46, computeSurfaceElevation(46, -38, simRef.current.activeSite.id), -38);
+    const tank1 = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.6, 1.6, 4.8, 16),
+      new THREE.MeshStandardMaterial({ color: 0x0ea5e9, metalness: 0.6, roughness: 0.25 })
+    );
+    tank1.position.set(-1.8, 2.4, 0);
+    refineryGroup.add(tank1);
+    const tank2 = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.6, 1.6, 4.8, 16),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.6, roughness: 0.25 })
+    );
+    tank2.position.set(2.0, 2.4, 0);
+    refineryGroup.add(tank2);
+    scene.add(refineryGroup);
+
+    const routeGroup = new THREE.Group();
+    scene.add(routeGroup);
+
+    const rebuildRouteVisuals = (routeObj) => {
+      while (routeGroup.children.length > 0) {
+        routeGroup.remove(routeGroup.children[0]);
+      }
+      const pts = [];
+      for (let i = 0; i < routeObj.waypoints.length - 1; i++) {
+        const a = routeObj.waypoints[i];
+        const b = routeObj.waypoints[i + 1];
+        for (let s = 0; s <= 30; s++) {
+          const t = s / 30;
+          const wx = a.x + (b.x - a.x) * t;
+          const wz = a.z + (b.z - a.z) * t;
+          const wy = computeSurfaceElevation(wx, wz, simRef.current.activeSite.id) + 0.4;
+          pts.push(new THREE.Vector3(wx, wy, wz));
+        }
+      }
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const tube = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, 100, 0.28, 8, false),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.92 })
+      );
+      routeGroup.add(tube);
+
+      routeObj.waypoints.forEach((wp) => {
+        const wy = computeSurfaceElevation(wp.x, wp.z, simRef.current.activeSite.id);
+        const ringGeo = new THREE.RingGeometry(2.0, 2.8, 24);
+        ringGeo.rotateX(-Math.PI / 2);
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: wp.type === 'ICE' ? 0x22d3ee : wp.type === 'REFINERY' ? 0x10b981 : 0xf59e0b,
+          side: THREE.DoubleSide
+        });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.position.set(wp.x, wy + 0.3, wp.z);
+        routeGroup.add(ring);
+
+        const crystal = new THREE.Mesh(
+          new THREE.OctahedronGeometry(0.95, 0),
+          new THREE.MeshStandardMaterial({
+            color: wp.type === 'ICE' ? 0x22d3ee : 0x10b981,
+            emissive: 0x0284c7,
+            emissiveIntensity: 0.85
+          })
+        );
+        crystal.position.set(wp.x, wy + 3.8, wp.z);
+        routeGroup.add(crystal);
+      });
+    };
+    rebuildRouteVisuals(simRef.current.activeRoute);
+    let lastRouteId = simRef.current.activeRoute.id;
+
+    // 6-WHEEL ROVER WITH ARTICULATED BOGIE SUSPENSION & FREE WHEELS
+    const roverGroup = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 0.75, 3.0),
+      new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.55, roughness: 0.3 })
+    );
+    body.position.y = 0.9;
+    body.castShadow = true;
+    roverGroup.add(body);
+
+    const cabin = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 0.6, 1.2),
+      new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.3 })
+    );
+    cabin.position.set(0, 1.45, 0.5);
+    roverGroup.add(cabin);
+
+    const drillMast = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.15, 1.8, 10),
+      new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0284c7, emissiveIntensity: 0.5 })
+    );
+    drillMast.position.set(0, 1.5, -0.95);
+    roverGroup.add(drillMast);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.35, 18);
+    wheelGeo.rotateZ(Math.PI / 2);
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
+
+    const wheelMeshes = [];
+    [
+      [-1.15, 0.45, -1.0],
+      [1.15, 0.45, -1.0],
+      [-1.15, 0.45, 0],
+      [1.15, 0.45, 0],
+      [-1.15, 0.45, 1.0],
+      [1.15, 0.45, 1.0]
+    ].forEach(([wx, wy, wz]) => {
+      const w = new THREE.Mesh(wheelGeo, wheelMat);
+      w.position.set(wx, wy, wz);
+      w.castShadow = true;
+      roverGroup.add(w);
+      wheelMeshes.push(w);
+    });
+
+    const headLight = new THREE.PointLight(0x38bdf8, 1.8, 20);
+    headLight.position.set(0, 2.0, 1.8);
+    roverGroup.add(headLight);
+    scene.add(roverGroup);
+
+    const keys = { forward: false, backward: false, left: false, right: false };
+    const onKeyDown = (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'w' || k === 'arrowup') keys.forward = true;
+      if (k === 's' || k === 'arrowdown') keys.backward = true;
+      if (k === 'a' || k === 'arrowleft') keys.left = true;
+      if (k === 'd' || k === 'arrowright') keys.right = true;
+    };
+    const onKeyUp = (e) => {
+      const k = e.key.toLowerCase();
+      if (k === 'w' || k === 'arrowup') keys.forward = false;
+      if (k === 's' || k === 'arrowdown') keys.backward = false;
+      if (k === 'a' || k === 'arrowleft') keys.left = false;
+      if (k === 'd' || k === 'arrowright') keys.right = false;
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+
+    let orbitTheta = 0.65;
+    let orbitPhi = 0.88;
+    let orbitRadius = 52;
+    let dragging = false;
+    let px = 0;
+    let py = 0;
+
+    const onDown = (e) => {
+      dragging = true;
+      px = e.clientX;
+      py = e.clientY;
+    };
+    const onMove = (e) => {
+      if (!dragging) return;
+      orbitTheta -= (e.clientX - px) * 0.006;
+      orbitPhi = Math.max(0.25, Math.min(1.4, orbitPhi - (e.clientY - py) * 0.006));
+      px = e.clientX;
+      py = e.clientY;
+    };
+    const onUp = () => {
+      dragging = false;
+    };
+    const dom = renderer.domElement;
+    dom.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+
+    const handleResize = () => {
+      if (!mountRef.current) return;
+      const w = mountRef.current.clientWidth || 1100;
+      const h = mountRef.current.clientHeight || 650;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    };
+    window.addEventListener('resize', handleResize);
+
+    let animId;
+    let frameCount = 0;
+
+    const animate = () => {
+      animId = requestAnimationFrame(animate);
+      frameCount++;
+      const s = simRef.current;
+
+      if (s.activeRoute.id !== lastRouteId) {
+        lastRouteId = s.activeRoute.id;
+        rebuildRouteVisuals(s.activeRoute);
+      }
+
+      const extCtrl = controlInputRef.current || {};
+      const fwd = keys.forward || extCtrl.forward;
+      const bwd = keys.backward || extCtrl.backward;
+      const lft = keys.left || extCtrl.left;
+      const rgt = keys.right || extCtrl.right;
+
+      let currentSpeed = 0;
+      if (fwd || bwd || lft || rgt) {
+        if (lft) s.roverHeading += 0.045;
+        if (rgt) s.roverHeading -= 0.045;
+        currentSpeed = fwd ? 0.38 : bwd ? -0.25 : 0;
+        if (currentSpeed !== 0) {
+          s.roverX = Math.max(-80, Math.min(80, s.roverX + Math.sin(s.roverHeading) * currentSpeed));
+          s.roverZ = Math.max(-80, Math.min(80, s.roverZ + Math.cos(s.roverHeading) * currentSpeed));
+          s.batteryPct = Math.max(10, s.batteryPct - 0.004);
+        }
+      } else if (s.autoSimRunning) {
+        s.autoProgress = (s.autoProgress + 0.0016) % 1;
+        const wps = s.activeRoute.waypoints;
+        const totalSeg = wps.length - 1;
+        const scaled = s.autoProgress * totalSeg;
+        const idx = Math.min(Math.floor(scaled), totalSeg - 1);
+        const localT = scaled - idx;
+        const p1 = wps[idx];
+        const p2 = wps[idx + 1];
+        s.roverX = p1.x + (p2.x - p1.x) * localT;
+        s.roverZ = p1.z + (p2.z - p1.z) * localT;
+        s.roverHeading = Math.atan2(p2.x - p1.x, p2.z - p1.z);
+        currentSpeed = 0.32;
+      }
+
+      const ry = computeSurfaceElevation(s.roverX, s.roverZ, s.activeSite.id);
+      roverGroup.position.set(s.roverX, ry, s.roverZ);
+      roverGroup.rotation.y = s.roverHeading;
+
+      // Spin free wheels & articulate suspension based on movement & terrain slope
+      wheelMeshes.forEach((w, idx) => {
+        if (currentSpeed !== 0 || s.autoSimRunning) {
+          w.rotation.x += currentSpeed * 0.8;
+        }
+        const bOffset = Math.sin(frameCount * 0.15 + idx * 1.2) * 0.08;
+        w.position.y = 0.45 + bOffset;
+      });
+
+      s.activeRoute.waypoints.forEach((wp) => {
+        if (wp.type === 'ICE') {
+          const dist = Math.hypot(s.roverX - wp.x, s.roverZ - wp.z);
+          if (dist < 4.8 && !s.harvestedIds[wp.id]) {
+            s.harvestedIds[wp.id] = true;
+            s.iceExtractedKg = Number((s.iceExtractedKg + 85.0).toFixed(1));
+            if (onHarvestIce) onHarvestIce(wp.label, s.iceExtractedKg);
+          }
+        }
+      });
+
+      if (s.cameraView === 'FIRST_PERSON') {
+        camera.position.set(
+          s.roverX + Math.sin(s.roverHeading) * 1.2,
+          ry + 2.3,
+          s.roverZ + Math.cos(s.roverHeading) * 1.2
+        );
+        camera.lookAt(
+          s.roverX + Math.sin(s.roverHeading) * 20,
+          ry + 1.5,
+          s.roverZ + Math.cos(s.roverHeading) * 20
+        );
+      } else if (s.cameraView === 'ORBIT') {
+        camera.position.set(
+          s.roverX + orbitRadius * Math.sin(orbitPhi) * Math.sin(orbitTheta),
+          ry + orbitRadius * Math.cos(orbitPhi),
+          s.roverZ + orbitRadius * Math.sin(orbitPhi) * Math.cos(orbitTheta)
+        );
+        camera.lookAt(s.roverX, ry + 1.4, s.roverZ);
+      } else {
+        const targetCamX = s.roverX - Math.sin(s.roverHeading) * 16;
+        const targetCamY = ry + 9.0;
+        const targetCamZ = s.roverZ - Math.cos(s.roverHeading) * 16;
+        camera.position.lerp(new THREE.Vector3(targetCamX, targetCamY, targetCamZ), 0.12);
+        camera.lookAt(s.roverX + Math.sin(s.roverHeading) * 6, ry + 1.6, s.roverZ + Math.cos(s.roverHeading) * 6);
+      }
+
+      if (frameCount % 8 === 0 && onTelemetryUpdate) {
+        onTelemetryUpdate({
+          x: s.roverX.toFixed(1),
+          z: s.roverZ.toFixed(1),
+          heading: Math.round(((s.roverHeading * 180) / Math.PI + 360) % 360),
+          iceKg: s.iceExtractedKg,
+          battery: s.batteryPct.toFixed(1)
+        });
+      }
+
+      renderer.render(scene, camera);
+    };
+
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      dom.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('resize', handleResize);
+      renderer.dispose();
+    };
+  }, [threeReady]);
+
+  return (
+    <div className="relative w-full h-full min-h-[620px] rounded-2xl overflow-hidden border border-slate-800 bg-[#060913] shadow-2xl">
+      <div ref={mountRef} className="w-full h-full" />
+
+      <div className="absolute top-4 right-4 flex gap-2 bg-slate-950/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-800 font-mono text-xs shadow-xl">
+        {[
+          { id: 'CHASE', label: 'ROVER CHASE' },
+          { id: 'FIRST_PERSON', label: 'DRIVER CAM' },
+          { id: 'ORBIT', label: 'FREE ORBIT' }
+        ].map((cam) => (
+          <button
+            key={cam.id}
+            onClick={() => setCameraView(cam.id)}
+            className={`px-3 py-2 rounded-xl cursor-pointer transition-all font-bold ${
+              cameraView === cam.id ? 'bg-sky-500 text-slate-950 shadow-[0_0_15px_rgba(56,189,248,0.4)]' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            {cam.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="absolute bottom-4 left-4 bg-slate-950/90 backdrop-blur-md border border-slate-800 rounded-2xl px-4 py-2.5 text-xs font-mono text-slate-300 pointer-events-none shadow-xl">
+        <div>DRIVE ROVER: <span className="text-sky-400 font-bold">W A S D</span> or <span className="text-sky-400 font-bold">ARROW KEYS</span> • 6-WHEEL FREE SUSPENSION ACTIVE</div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// MAIN APPLICATION: ARES-SPHERE // MARS COLONIZATION & GLOBAL SIMULATION
+// ============================================================================
+
+export default function App() {
+  const [viewMode, setViewMode] = useState('GLOBAL');
+  const [selectedSiteId, setSelectedSiteId] = useState('arcadia');
+  const [selectedRouteId, setSelectedRouteId] = useState('ICE-RT-01');
+  const [autoSimRunning, setAutoSimRunning] = useState(true);
+  const [roverTelemetry, setRoverTelemetry] = useState({
+    x: '-44.0',
+    z: '42.0',
+    heading: 45,
+    iceKg: 207.5,
+    battery: '98.4'
+  });
+
+  const controlInputRef = useRef({ forward: false, backward: false, left: false, right: false });
+
+  const [constructedModules, setConstructedModules] = useState({
+    hydroponics: true,
+    sabatier: true,
+    nuclear: true,
+    airlock: true,
+    solar: false,
+    commTower: true
+  });
+
+  const [toastBanner, setToastBanner] = useState(null);
+
+  const activeSite = useMemo(
+    () => GLOBAL_COLONIZATION_SITES.find((s) => s.id === selectedSiteId) || GLOBAL_COLONIZATION_SITES[2],
+    [selectedSiteId]
+  );
+
+  const activeSurfaceRoute = useMemo(
+    () => WATER_ICE_SURFACE_ROUTES.find((r) => r.id === selectedRouteId) || WATER_ICE_SURFACE_ROUTES[0],
+    [selectedRouteId]
+  );
+
+  const triggerBanner = (msg, type = 'info') => {
+    setToastBanner({ msg, type });
+    setTimeout(() => {
+      setToastBanner((current) => (current?.msg === msg ? null : current));
+    }, 4500);
+  };
+
+  const handleDropToWaterIceSimulation = (targetSiteId) => {
+    const chosen = GLOBAL_COLONIZATION_SITES.find((s) => s.id === targetSiteId) || GLOBAL_COLONIZATION_SITES[2];
+    setSelectedSiteId(chosen.id);
+    setAutoSimRunning(true);
+    setViewMode('SURFACE_SIM');
+    triggerBanner(
+      `TOUCHDOWN CONFIRMED AT ${chosen.name} (${chosen.waterIceRating}). Water/Ice Routes loaded — use WASD or Arrow Keys to drive!`,
+      'success'
+    );
+  };
+
+  const toggleModule = (modKey) => {
+    setConstructedModules((prev) => {
+      const next = { ...prev, [modKey]: !prev[modKey] };
+      triggerBanner(`Habitat module [${modKey.toUpperCase()}] ${next[modKey] ? 'deployed' : 'stowed'} at ${activeSite.name}.`, 'success');
+      return next;
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-[#060913] text-slate-100 flex flex-col font-sans selection:bg-sky-500/30">
+      {toastBanner && (
+        <div className="bg-sky-950/95 border-b border-sky-500/50 px-5 py-3 text-xs font-mono text-sky-200 flex items-center justify-between z-40">
+          <div className="flex items-center gap-2">
+            <Droplets className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>{toastBanner.msg}</span>
+          </div>
+          <button onClick={() => setToastBanner(null)} className="text-[10px] underline opacity-85 hover:opacity-100 cursor-pointer">
+            DISMISS
+          </button>
+        </div>
+      )}
+
+      {/* Top Navigation Bar */}
+      <header className="border-b border-slate-800/90 bg-[#0B1120]/95 backdrop-blur-md px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 z-30">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-sky-500/10 border border-sky-400/40 flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.25)]">
+            <Globe className="w-6 h-6 text-sky-400" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-bold tracking-widest text-sky-400">
+                ARES-SPHERE // MARS COLONIZATION &amp; TACTICAL SIMULATOR
+              </span>
+              <span className="px-2.5 py-0.5 rounded-xl text-[10px] font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold">
+                TOURNAMENT READY v4.2
+              </span>
+            </div>
+            <h1 className="text-sm sm:text-base font-semibold tracking-tight text-white">
+              {viewMode === 'GLOBAL' && 'GLOBAL PLANETARY RECON & WATER-ICE TARGETING'}
+              {viewMode === 'SURFACE_SIM' && `SURFACE ISRU SIMULATION // ${activeSite.name}`}
+              {viewMode === 'SITES' && 'HABITAT SUITABILITY & MODULE PLANNER'}
+              {viewMode === 'ROUTES' && 'INTER-COLONY SUPPLY CHAINS'}
+              {viewMode === 'JUDGE_MODE' && 'HACKATHON JUDGE PITCH DECK & METRICS'}
+            </h1>
+          </div>
+        </div>
+
+        {/* View Mode Switcher */}
+        <div className="flex flex-wrap items-center gap-2 font-mono text-xs">
+          {[
+            { id: 'GLOBAL', label: 'MARS GLOBE' },
+            { id: 'SURFACE_SIM', label: 'SURFACE SIM' },
+            { id: 'SITES', label: 'HABITAT PLANNER' },
+            { id: 'ROUTES', label: 'SUPPLY ROUTES' },
+            { id: 'JUDGE_MODE', label: 'JUDGE DECK' }
+          ].map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => setViewMode(mode.id)}
+              className={`px-3.5 py-2.5 rounded-2xl transition-all cursor-pointer font-bold ${
+                viewMode === mode.id
+                  ? 'bg-sky-500 text-slate-950 shadow-[0_0_20px_rgba(56,189,248,0.4)]'
+                  : 'bg-slate-900/80 text-slate-300 hover:bg-slate-800 border border-slate-800'
+              }`}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      {/* VIEW MODE 1: GLOBAL MARS 3D SPHERICAL VIEW */}
+      {viewMode === 'GLOBAL' && (
+        <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 p-5">
+          <aside className="lg:col-span-4 flex flex-col gap-4">
+            <div className="bg-[#0C1322] border border-slate-800/90 rounded-3xl p-6 shadow-2xl flex-1 flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                  <Globe className="w-4 h-4" />
+                  MARS WATER &amp; ICE ZONES (8 SITES)
+                </h2>
+                <span className="text-[10px] font-mono text-cyan-400 font-bold">ICE RADAR ON</span>
+              </div>
+
+              <div className="space-y-3 flex-1 overflow-y-auto max-h-[480px]">
+                {GLOBAL_COLONIZATION_SITES.map((site) => {
+                  const isSelected = selectedSiteId === site.id;
+                  const hasHighIce = site.waterIceRating.includes('EXCEPTIONAL') || site.waterIceRating.includes('HIGH');
+                  return (
+                    <div
+                      key={site.id}
+                      onClick={() => setSelectedSiteId(site.id)}
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-md ${
+                        isSelected
+                          ? 'bg-sky-950/40 border-sky-400/80 shadow-[0_0_20px_rgba(56,189,248,0.2)]'
+                          : 'bg-slate-900/60 border-slate-800/80 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-bold text-sky-300">{site.code}</span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-lg text-[10px] font-mono border font-semibold ${
+                            hasHighIce
+                              ? 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40'
+                              : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                          }`}
+                        >
+                          {hasHighIce ? 'RICH WATER ICE' : `${site.suitabilityScore}% SUITABLE`}
+                        </span>
+                      </div>
+                      <div className="text-sm font-semibold text-white mt-1.5">{site.name}</div>
+                      <div className="text-[11px] font-mono text-cyan-300 mt-1">{site.waterIceRating}</div>
+                      <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">{site.description}</p>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => handleDropToWaterIceSimulation(activeSite.id)}
+                className="mt-5 w-full py-4 px-5 rounded-2xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-mono text-xs font-bold tracking-wide flex items-center justify-center gap-2 transition-all shadow-[0_0_25px_rgba(56,189,248,0.35)] cursor-pointer"
+              >
+                <Droplets className="w-4 h-4" />
+                <span>DROP TO WATER/ICE ZONE &amp; START SIMULATION</span>
+              </button>
+            </div>
+          </aside>
+
+          <section className="lg:col-span-8 flex flex-col">
+            <div className="bg-[#0C1322] border border-slate-800/90 rounded-3xl p-5 shadow-2xl flex-1 flex flex-col">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-800 text-xs font-mono text-slate-300">
+                <span>WHOLE MARS PLANETARY MAP // CLICK PLANET TO LAND ON WATER &amp; ICE</span>
+                <span className="text-cyan-400">ICE TARGET: {activeSite.name}</span>
+              </div>
+              <div className="flex-1 min-h-[620px]">
+                <GlobalMarsGlobeViewport
+                  selectedSiteId={selectedSiteId}
+                  onSelectSite={(id) => setSelectedSiteId(id)}
+                  onDiveToSurface={(siteId) => handleDropToWaterIceSimulation(siteId)}
+                />
+              </div>
+            </div>
+          </section>
+        </main>
+      )}
+
+      {/* VIEW MODE 2: CONTROLLABLE SURFACE SIMULATION */}
+      {viewMode === 'SURFACE_SIM' && (
+        <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 p-5">
+          <aside className="lg:col-spa... (16 KB left)
