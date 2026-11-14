@@ -1,191 +1,79 @@
-/**
- * Mars Surface Explorer - Main Application
- * Owned by: Person 4 (Integration & Widgets)
- */
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import MarsGlobe from './components/MarsGlobe.jsx';
-import Sidebar from './components/Sidebar.jsx';
-import waypointsData from './data/waypoints.json';
-import { JEZERO } from './data/config.js';
+import RoutePanel from './components/RoutePanel.jsx';
+import SourcePanel from './components/SourcePanel.jsx';
+import { SITE, INITIAL_ROUTE } from './data/mission.js';
+import { routeSummary, exportRoute, parseRoute } from './lib/mission.js';
+import { sampleElevation } from './lib/terrain.js';
 import './App.css';
 
-// Loading Screen Component
-function LoadingScreen() {
-  return (
-    <div className="loading-screen">
-      <div style={{ fontSize: '48px' }} className="loading-pulse">🪐</div>
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: '16px',
-          fontWeight: 700,
-          letterSpacing: '2px',
-          color: 'var(--accent-orange)'
-        }}
-      >
-        LOADING MARS SURFACE DATA...
-      </div>
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: '11px',
-          letterSpacing: '1px',
-          color: 'var(--text-muted)'
-        }}
-      >
-        CONNECTING TO NASA TREK TILE SERVER
-      </div>
-    </div>
-  );
+function initialRoute() {
+  try { const saved = localStorage.getItem('martian-map-arcadia-v1'); return saved ? parseRoute(saved) : INITIAL_ROUTE; }
+  catch { return INITIAL_ROUTE; }
 }
-
-// Top Status Bar Component
-function TopBar() {
-  const [utcTime, setUtcTime] = useState(new Date().toUTCString().replace('GMT', 'UTC'));
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setUtcTime(new Date().toUTCString().replace('GMT', 'UTC'));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <header
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: '360px',
-        height: '36px',
-        backgroundColor: 'rgba(7, 8, 15, 0.88)',
-        borderBottom: '1px solid rgba(232, 84, 26, 0.2)',
-        backdropFilter: 'blur(8px)',
-        zIndex: 9,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 16px',
-        fontFamily: 'var(--font-mono)',
-        fontSize: '11px',
-        color: 'var(--text-muted)'
-      }}
-    >
-      {/* Live Indicator & Target */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span
-            style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: '#ef4444',
-              boxShadow: '0 0 8px #ef4444'
-            }}
-          />
-          <span style={{ color: '#ef4444', fontWeight: 'bold', letterSpacing: '1px' }}>LIVE DSN FEED</span>
-        </div>
-        <span style={{ color: 'rgba(232, 84, 26, 0.4)' }}>|</span>
-        <span>TARGET: JEZERO CRATER ({JEZERO.lat}° N, {JEZERO.lng}° E)</span>
-      </div>
-
-      {/* UTC Clock & Crew Status */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <span>CREW STATUS: <strong style={{ color: 'var(--safe-green)' }}>NOMINAL (EVA-3)</strong></span>
-        <span style={{ color: 'rgba(232, 84, 26, 0.4)' }}>|</span>
-        <span>O₂ RESERVE: <strong style={{ color: '#38bdf8' }}>94.2%</strong></span>
-        <span style={{ color: 'rgba(232, 84, 26, 0.4)' }}>|</span>
-        <span style={{ color: '#ffffff' }}>{utcTime}</span>
-      </div>
-    </header>
-  );
-}
-
 export default function App() {
-  const [selectedNode, setSelectedNode] = useState(null);
-  const [activeLayer, setActiveLayer] = useState('optical');
-  const [hudMode, setHudMode] = useState(false);
-  const [cesiumReady, setCesiumReady] = useState(false);
-
-  // Compute Mission Stats from waypoints
-  const missionStats = useMemo(() => {
-    const total = waypointsData.length;
-    const safe = waypointsData.filter((w) => w.safetyStatus === 'safe').length;
-    const caution = waypointsData.filter((w) => w.safetyStatus === 'caution').length;
-    const danger = waypointsData.filter((w) => w.safetyStatus === 'danger').length;
-    return { total, safe, caution, danger };
-  }, []);
-
-  // Cesium CDN Dynamic Loader
-  useEffect(() => {
-    if (window.Cesium) {
-      if (window.Cesium.Ion) {
-        window.Cesium.Ion.defaultAccessToken = '';
-      }
-      setCesiumReady(true);
-      return;
-    }
-
-    // Inject CSS
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Widgets/widgets.css';
-    document.head.appendChild(link);
-
-    // Inject Script
-    const script = document.createElement('script');
-    script.src = 'https://cesium.com/downloads/cesiumjs/releases/1.119/Build/Cesium/Cesium.js';
-    script.async = true;
-    script.onload = () => {
-      if (window.Cesium && window.Cesium.Ion) {
-        window.Cesium.Ion.defaultAccessToken = '';
-      }
-      setCesiumReady(true);
-    };
-    script.onerror = () => {
-      console.error('Failed to load CesiumJS from CDN.');
-    };
-    document.body.appendChild(script);
-  }, []);
-
-  return (
-    <div className="app-container">
-      {/* Loading Screen Overlay */}
-      {!cesiumReady && <LoadingScreen />}
-
-      {/* HUD Vignette & Scanlines */}
-      {hudMode && (
-        <>
-          <div className="hud-vignette" />
-          <div className="hud-scanlines" />
-          <div className="hud-scanline-beam" />
-        </>
-      )}
-
-      {/* Top Status Bar */}
-      <TopBar />
-
-      {/* Cesium Mars Globe */}
-      {cesiumReady && (
-        <MarsGlobe
-          waypoints={waypointsData}
-          onNodeClick={setSelectedNode}
-          activeLayer={activeLayer}
-        />
-      )}
-
-      {/* Mission Sidebar */}
-      <Sidebar
-        selectedNode={selectedNode}
-        onCloseNode={() => setSelectedNode(null)}
-        activeLayer={activeLayer}
-        onLayerChange={setActiveLayer}
-        hudMode={hudMode}
-        onToggleHud={() => setHudMode((h) => !h)}
-        missionStats={missionStats}
-      />
-    </div>
-  );
+  const [route,setRoute] = useState(initialRoute);
+  const [selected,setSelected] = useState('hab');
+  const [terrain,setTerrain] = useState(null);
+  const [error,setError] = useState('');
+  const [tab,setTab] = useState('plan');
+  const [layer,setLayer] = useState('optical');
+  const [opacity,setOpacity] = useState(1);
+  const [exaggeration,setExaggeration] = useState(1);
+  const [focus,setFocus] = useState(null);
+  const [addMode,setAddMode] = useState(false);
+  const [showRoute,setShowRoute] = useState(true);
+  const [crewView,setCrewView] = useState(false);
+  const [settings,setSettings] = useState({speed:2,budget:4,reserve:25});
+  const [saveStatus,setSaveStatus] = useState('Saved on this device');
+  const summary = useMemo(()=>routeSummary(route,settings.speed,settings.reserve,terrain),[route,settings,terrain]);
+  useEffect(()=>{const controller=new AbortController();fetch('/mars-assets/arcadia-terrain.json',{signal:controller.signal}).then(r=>{if(!r.ok)throw Error('Terrain asset missing');return r.json();}).then(setTerrain).catch(e=>{if(e.name!=='AbortError')setError(e.message);});return()=>controller.abort();},[]);
+  useEffect(()=>{try{localStorage.setItem('martian-map-arcadia-v1',JSON.stringify(exportRoute(route,settings)));setSaveStatus('Saved on this device');}catch{setSaveStatus('Local saving unavailable · export your route');}},[route,settings]);
+  function select(point){setSelected(point.id);setFocus({...point,height:1500,pitch:-85});}
+  function move(index,direction){setRoute(current=>{const copy=[...current];[copy[index],copy[index+direction]]=[copy[index+direction],copy[index]];return copy;});}
+  function remove(id){setRoute(current=>current.filter(p=>p.id!==id));if(selected===id)setSelected(route[0].id);}
+  function update(id,values){setRoute(current=>current.map(p=>p.id===id?{...p,...values}:p));}
+  function add(lng,lat){
+    if(route.length>=30){setError('This demo supports up to 30 stops.');return;}
+    if(!terrain||sampleElevation(terrain,lng,lat)===null){setError('Choose a point inside valid terrain coverage.');return;}
+    const point={id:crypto.randomUUID(),lng,lat,name:'Science stop '+route.length,kind:'science',minutes:15,objective:'Define a science objective and verify this location.'};
+    setRoute(current=>[...current,point]);setSelected(point.id);setAddMode(false);setError('');
+  }
+  function download(){
+    const url=URL.createObjectURL(new Blob([JSON.stringify(exportRoute(route,settings),null,2)],{type:'application/geo+json'}));
+    const anchor=document.createElement('a');anchor.href=url;anchor.download='arcadia-mission.geojson';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  async function importFile(event){
+    const file=event.target.files[0];if(!file)return;
+    try{if(file.size>1000000)throw Error('Route file must be smaller than 1 MB.');const imported=parseRoute(await file.text());setRoute(imported);setSelected(imported[0].id);setFocus({...imported[0],height:3000});setError('');}catch(e){setError(e.message);}
+    event.target.value='';
+  }
+  const point=route.find(p=>p.id===selected)||route[0];
+  return <main className={'mission-app '+(crewView?'crew-view':'')}>
+    <section className="map-pane" aria-label="Cesium Mars mission map">
+      <MarsGlobe route={route} selected={selected} onSelect={id=>{const p=route.find(p=>p.id===id);if(p)select(p);}} onAdd={add} addMode={addMode} layer={layer} opacity={opacity} exaggeration={exaggeration} focus={focus} terrain={terrain} showRoute={showRoute}/>
+      <header className="brand"><span className="mark">M<span>↗</span></span><div><strong>MARTIAN MAP</strong><small>INTERPLANETARY SURVIVAL GUIDE</small></div></header>
+      <div className="map-title"><span>ARCADIA FIELD STATION / CONCEPT 01</span><h1>Arcadia Planitia.</h1><p>40.525° N &nbsp; 193.358° E<br/>A habitat mission in the northern plains.</p></div>
+      <div className="map-badges"><span><i/> MEASURED TERRAIN</span><span>PROPOSED MISSION</span></div>
+      <div className="camera-tools" aria-label="Camera controls">
+        <button title="View planet" onClick={()=>setFocus({lng:SITE.lng,lat:SITE.lat,height:8500000,pitch:-90})}>◎<span>Planet</span></button>
+        <button title="View field area" onClick={()=>setFocus({...SITE,lat:SITE.lat-.025,pitch:-62})}>⌖<span>Field</span></button>
+        <button title="Overhead view" onClick={()=>setFocus({...SITE,height:5500,pitch:-90})}>⊞<span>Overhead</span></button>
+        <button title="Simulated eye-level view" onClick={()=>setFocus({...point,height:3,pitch:0,heading:35})}>↗<span>Surface</span></button>
+      </div>
+      <div className="layer-dock"><div className="layer-tabs">{[['optical','Optical'],['elevation','Elevation'],['thermal','Thermal IR']].map(([id,label])=><button key={id} className={layer===id?'active':''} aria-pressed={layer===id} onClick={()=>setLayer(id)}>{label}</button>)}</div>
+        <div className="layer-options"><label>Opacity<input aria-label="Layer opacity" type="range" min="0" max="1" step=".05" value={opacity} onChange={e=>setOpacity(Number(e.target.value))}/></label><label>Relief<select aria-label="Vertical exaggeration" value={exaggeration} onChange={e=>setExaggeration(Number(e.target.value))}><option value="1">1× true scale</option><option value="3">3× exaggerated</option><option value="5">5× exaggerated</option></select></label><label><input type="checkbox" checked={showRoute} onChange={e=>setShowRoute(e.target.checked)}/> Route</label></div>
+        <p>{layer==='optical'?'HiRISE orthophoto · ~3.3 m preview':layer==='elevation'?'Low −3962 m ▰▰▰ High −3928 m · Mars datum':'THEMIS daytime IR · relative image brightness'}{exaggeration>1?' · HEIGHT EXAGGERATED':''}</p>
+      </div>
+      <div className="map-note">Surface view is an orbital-derived simulation. Drag to pan · wheel to zoom · Ctrl + drag to tilt.</div>
+      <button className="crew-toggle" onClick={()=>setCrewView(!crewView)}>{crewView?'Open mission planner':'Focus on terrain'}</button>
+    </section>
+    <aside className="mission-panel">
+      <div className="panel-heading"><span>MISSION WORKSPACE</span><span className="badge">PROTOTYPE</span></div>
+      <nav className="panel-tabs"><button className={tab==='plan'?'active':''} onClick={()=>setTab('plan')}>Plan excursion</button><button className={tab==='data'?'active':''} onClick={()=>setTab('data')}>Data & sources</button></nav>
+      {error&&<div className="notice warning" role="alert">{error}<button aria-label="Dismiss message" onClick={()=>setError('')}>×</button></div>}
+      {tab==='plan'?<RoutePanel route={route} selected={selected} select={select} move={move} remove={remove} update={update} settings={settings} setSettings={setSettings} summary={summary} onExport={download} onImport={importFile} onReset={()=>{setRoute(INITIAL_ROUTE);setSelected('hab');setFocus({...SITE});}} addMode={addMode} setAddMode={setAddMode}/>:<SourcePanel/>}
+      <footer>{saveStatus}<br/>Research prototype · route requires ground validation</footer>
+    </aside>
+  </main>;
 }
-
