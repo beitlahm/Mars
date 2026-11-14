@@ -20,3 +20,7 @@ Switch between optical, elevation and thermal layers. Use the planet, field, ove
 The habitat and stops are concept placements. Orbital datasets inform the preview, and the route still requires ground validation for hazards and suitability.
 
 See [team ownership and next steps](TEAM.md) and [map data provenance](public/mars-assets/README.md).
+
+## GitHub Pages
+
+In Settings → Pages, set the source to **GitHub Actions**. The Deploy Martian Map workflow builds and publishes the app on pushes to main, using the base path reported by GitHub Pages.

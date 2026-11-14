@@ -33,7 +33,7 @@ export default function MarsGlobe({ route, selected, onSelect, onAdd, addMode, l
       viewer.scene.backgroundColor = C.Color.fromCssColorString('#080d10');
       viewer.scene.screenSpaceCameraController.minimumZoomDistance = 2;
       viewerRef.current = viewer;
-      C.SingleTileImageryProvider.fromUrl('/mars-assets/mars-global.jpg', { credit: 'Viking / NASA / USGS' }).then(provider => {
+      C.SingleTileImageryProvider.fromUrl(import.meta.env.BASE_URL + 'mars-assets/mars-global.jpg', { credit: 'Viking / NASA / USGS' }).then(provider => {
         if (!canceled) { viewer.imageryLayers.addImageryProvider(provider, 0); viewer.scene.requestRender(); }
       }).catch(() => { if (!canceled) setStatus('Global imagery unavailable; local data remains available.'); });
       viewer.camera.setView({
@@ -67,7 +67,7 @@ export default function MarsGlobe({ route, selected, onSelect, onAdd, addMode, l
     if (overlayRef.current) { viewer.imageryLayers.remove(overlayRef.current); overlayRef.current = null; }
     const b = layer === 'thermal' ? { west: -166.9921875, east: -166.2890625, south: 40.4296875, north: 40.78125 } : terrain.bounds;
     const file = layer === 'thermal' ? 'arcadia-thermal.jpg' : layer === 'elevation' ? 'arcadia-elevation.png' : 'arcadia-optical.jpg';
-    C.SingleTileImageryProvider.fromUrl('/mars-assets/' + file, {
+    C.SingleTileImageryProvider.fromUrl(import.meta.env.BASE_URL + 'mars-assets/' + file, {
       rectangle: C.Rectangle.fromDegrees(b.west, b.south, b.east, b.north),
       credit: layer === 'thermal' ? 'THEMIS / NASA / JPL / ASU / USGS' : 'HiRISE / NASA / JPL-Caltech / UArizona'
     }).then(provider => {

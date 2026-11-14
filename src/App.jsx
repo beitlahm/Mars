@@ -27,7 +27,7 @@ export default function App() {
   const [settings,setSettings] = useState({speed:2,budget:4,reserve:25});
   const [saveStatus,setSaveStatus] = useState('Saved on this device');
   const summary = useMemo(()=>routeSummary(route,settings.speed,settings.reserve,terrain),[route,settings,terrain]);
-  useEffect(()=>{const controller=new AbortController();fetch('/mars-assets/arcadia-terrain.json',{signal:controller.signal}).then(r=>{if(!r.ok)throw Error('Terrain asset missing');return r.json();}).then(setTerrain).catch(e=>{if(e.name!=='AbortError')setError(e.message);});return()=>controller.abort();},[]);
+  useEffect(()=>{const controller=new AbortController();fetch(import.meta.env.BASE_URL + 'mars-assets/arcadia-terrain.json',{signal:controller.signal}).then(r=>{if(!r.ok)throw Error('Terrain asset missing');return r.json();}).then(setTerrain).catch(e=>{if(e.name!=='AbortError')setError(e.message);});return()=>controller.abort();},[]);
   useEffect(()=>{try{localStorage.setItem('martian-map-arcadia-v1',JSON.stringify(exportRoute(route,settings)));setSaveStatus('Saved on this device');}catch{setSaveStatus('Local saving unavailable · export your route');}},[route,settings]);
   function select(point){setSelected(point.id);setFocus({...point,height:1500,pitch:-85});}
   function move(index,direction){setRoute(current=>{const copy=[...current];[copy[index],copy[index+direction]]=[copy[index+direction],copy[index]];return copy;});}
